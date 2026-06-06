@@ -1,0 +1,294 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id               String          @id @default(uuid()) @db.Uuid
+  name             String?         @db.VarChar(100)
+  username         String          @unique @db.VarChar(50)
+  email            String?         @unique @db.VarChar(255)
+  phone            String?         @unique @db.VarChar(20)
+  profileImageUrl  String?         @map("profile_image_url") @db.Text
+  bio              String?         @db.Text
+  authProvider     String?         @map("auth_provider") @db.VarChar(20)
+  isVerified       Boolean         @default(false) @map("is_verified")
+  status           String          @default("ACTIVE") @db.VarChar(20)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamp
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamp
+
+  devices          UserDevice[]
+  sentRequests     FriendRequest[] @relation("SentRequests")
+  receivedRequests FriendRequest[] @relation("ReceivedRequests")
+  friendsAsUser    Friend[]        @relation("FriendsAsUser")
+  friendsAsFriend  Friend[]        @relation("FriendsAsFriend")
+  blockedBy        BlockedUser[]   @relation("Blocker")
+  blockedUsers     BlockedUser[]   @relation("Blocked")
+  invitations      Invitation[]
+  circles          Circle[]
+  circleMembers    CircleMember[]
+  sentMoments      Moment[]
+  momentReceivers  MomentReceiver[]
+  momentViews      MomentView[]
+  reactions        Reaction[]
+  widgets          Widget[]
+  notifications    Notification[]
+  reportsFiled     Report[]        @relation("Reporter")
+  reportsAgainst   Report[]        @relation("ReportedUser")
+  settings         UserSetting?
+  subscriptions    Subscription[]
+
+  @@map("users")
+}
+
+model UserDevice {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  deviceId   String?  @map("device_id") @db.VarChar
+  deviceType String?  @map("device_type") @db.VarChar
+  fcmToken   String?  @map("fcm_token") @db.Text
+  appVersion String?  @map("app_version") @db.VarChar
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_devices")
+}
+
+model FriendRequest {
+  id         String   @id @default(uuid()) @db.Uuid
+  senderId   String   @map("sender_id") @db.Uuid
+  receiverId String   @map("receiver_id") @db.Uuid
+  status     String   @default("PENDING") @db.VarChar // PENDING, ACCEPTED, REJECTED, CANCELLED
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  sender     User     @relation("SentRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ReceivedRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("friend_requests")
+}
+
+model Friend {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  friendId  String   @map("friend_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  user      User     @relation("FriendsAsUser", fields: [userId], references: [id], onDelete: Cascade)
+  friend    User     @relation("FriendsAsFriend", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@map("friends")
+}
+
+model BlockedUser {
+  id        String   @id @default(uuid()) @db.Uuid
+  blockerId String   @map("blocker_id") @db.Uuid
+  blockedId String   @map("blocked_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@map("blocked_users")
+}
+
+model Invitation {
+  id            String            @id @default(uuid()) @db.Uuid
+  inviterId     String            @map("inviter_id") @db.Uuid
+  inviteCode    String            @unique @map("invite_code") @db.VarChar
+  inviteLink    String?           @map("invite_link") @db.Text
+  platform      String?           @db.VarChar
+  clickCount    Int               @default(0) @map("click_count")
+  installCount  Int               @default(0) @map("install_count")
+  acceptedCount Int               @default(0) @map("accepted_count")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamp
+
+  inviter       User              @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  events        InvitationEvent[]
+
+  @@map("invitations")
+}
+
+model InvitationEvent {
+  id           String     @id @default(uuid()) @db.Uuid
+  invitationId String     @map("invitation_id") @db.Uuid
+  eventType    String     @map("event_type") @db.VarChar // CLICK, INSTALL, REGISTER, ACCEPT
+  deviceInfo   String?    @map("device_info") @db.Text
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamp
+
+  invitation   Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@map("invitation_events")
+}
+
+model Circle {
+  id         String         @id @default(uuid()) @db.Uuid
+  ownerId    String         @map("owner_id") @db.Uuid
+  name       String         @db.VarChar
+  coverImage String?        @map("cover_image") @db.Text
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamp
+
+  owner      User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members    CircleMember[]
+  moments    Moment[]
+
+  @@map("circles")
+}
+
+model CircleMember {
+  id       String   @id @default(uuid()) @db.Uuid
+  circleId String   @map("circle_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  role     String   @default("MEMBER") @db.VarChar // OWNER, ADMIN, MEMBER
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamp
+
+  circle   Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([circleId, userId])
+  @@map("circle_members")
+}
+
+model Moment {
+  id            String           @id @default(uuid()) @db.Uuid
+  senderId      String           @map("sender_id") @db.Uuid
+  circleId      String           @map("circle_id") @db.Uuid
+  imageUrl      String           @map("image_url") @db.Text
+  thumbnailUrl  String?          @map("thumbnail_url") @db.Text
+  caption       String?          @db.VarChar(255)
+  visibility    String           @default("PRIVATE") @db.VarChar
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamp
+
+  sender        User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  circle        Circle           @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  receivers     MomentReceiver[]
+  views         MomentView[]
+  reactions     Reaction[]
+  widgetUpdates WidgetUpdate[]
+
+  @@map("moments")
+}
+
+model MomentReceiver {
+  id         String    @id @default(uuid()) @db.Uuid
+  momentId   String    @map("moment_id") @db.Uuid
+  receiverId String    @map("receiver_id") @db.Uuid
+  viewed     Boolean   @default(false)
+  viewedAt   DateTime? @map("viewed_at") @db.Timestamp
+
+  moment     Moment    @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  receiver   User      @relation(fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("moment_receivers")
+}
+
+model MomentView {
+  id       String   @id @default(uuid()) @db.Uuid
+  momentId String   @map("moment_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  viewedAt DateTime @default(now()) @map("viewed_at") @db.Timestamp
+
+  moment   Moment   @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("moment_views")
+}
+
+model Reaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  momentId  String   @map("moment_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  emoji     String   @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  moment    Moment   @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([momentId, userId, emoji])
+  @@map("reactions")
+}
+
+model Widget {
+  id               String         @id @default(uuid()) @db.Uuid
+  userId           String         @map("user_id") @db.Uuid
+  widgetType       String         @map("widget_type") @db.VarChar // SMALL, MEDIUM, LARGE, LOCKSCREEN
+  selectedCircleId String?        @map("selected_circle_id") @db.Uuid
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamp
+
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updates          WidgetUpdate[]
+
+  @@map("widgets")
+}
+
+model WidgetUpdate {
+  id        String   @id @default(uuid()) @db.Uuid
+  widgetId  String   @map("widget_id") @db.Uuid
+  momentId  String   @map("moment_id") @db.Uuid
+  status    String   @db.VarChar
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp
+
+  widget    Widget   @relation(fields: [widgetId], references: [id], onDelete: Cascade)
+  moment    Moment   @relation(fields: [momentId], references: [id], onDelete: Cascade)
+
+  @@map("widget_updates")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String   @db.VarChar // NEW_MOMENT, REACTION, FRIEND_REQUEST, INVITE_ACCEPTED
+  title     String   @db.VarChar
+  body      String   @db.Text
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Report {
+  id             String   @id @default(uuid()) @db.Uuid
+  reporterId     String   @map("reporter_id") @db.Uuid
+  reportedUserId String   @map("reported_user_id") @db.Uuid
+  reason         String   @db.Text
+  status         String   @default("PENDING") @db.VarChar
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  reporter       User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser   User     @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+model UserSetting {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @unique @map("user_id") @db.Uuid
+  darkMode           Boolean  @default(false) @map("dark_mode")
+  pushNotifications  Boolean  @default(true) @map("push_notifications")
+  emailNotifications Boolean  @default(true) @map("email_notifications")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model Subscription {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  planName  String    @map("plan_name") @db.VarChar
+  startDate DateTime  @map("start_date") @db.Timestamp
+  endDate   DateTime? @map("end_date") @db.Timestamp
+  status    String    @db.VarChar
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
