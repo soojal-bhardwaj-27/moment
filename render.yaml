@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: sb-moments-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npx prisma db push && npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
