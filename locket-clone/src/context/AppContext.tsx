@@ -98,7 +98,9 @@ interface AppContextType {
   updatePushToken: (pushToken: string) => Promise<void>;
   sendFriendRequest: (receiverUsername: string) => Promise<void>;
   acceptFriendRequest: (friendshipId: string) => Promise<void>;
+  rejectFriendRequest: (friendshipId: string) => Promise<void>;
   createCircle: (circleName: string) => Promise<Circle>;
+  deleteCircle: (circleId: string) => Promise<void>;
   addCircleMember: (circleId: string, userId: string) => Promise<void>;
   uploadMoment: (photoUrl: string, circleId: string, caption?: string, base64Data?: string | null) => Promise<Moment>;
   reactToMoment: (momentId: string, emoji: string) => Promise<void>;
@@ -406,6 +408,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const rejectFriendRequest = async (friendshipId: string) => {
+    try {
+      const res = await fetch(`${apiUrl}/api/friends/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendshipId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to reject friend request');
+      await refreshAll();
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
   const createCircle = async (circleName: string) => {
     if (!user) throw new Error('Not authenticated');
     try {
@@ -418,6 +436,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!res.ok) throw new Error(data.error || 'Failed to create circle');
       await refreshAll();
       return data.circle;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
+  const deleteCircle = async (circleId: string) => {
+    if (!user) throw new Error('Not authenticated');
+    try {
+      const res = await fetch(`${apiUrl}/api/circles/${circleId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete circle');
+      await refreshAll();
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -568,7 +603,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatePushToken,
         sendFriendRequest,
         acceptFriendRequest,
+        rejectFriendRequest,
         createCircle,
+        deleteCircle,
         addCircleMember,
         uploadMoment,
         reactToMoment,

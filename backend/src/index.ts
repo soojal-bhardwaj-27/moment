@@ -622,6 +622,31 @@ app.post('/api/friends/accept', async (req: Request, res: Response): Promise<any
   }
 });
 
+// POST /api/friends/reject
+app.post('/api/friends/reject', async (req: Request, res: Response): Promise<any> => {
+  const { friendshipId } = req.body;
+  if (!friendshipId) {
+    return res.status(400).json({ error: 'Friendship ID is required' });
+  }
+
+  try {
+    const request = await prisma.friendRequest.findUnique({
+      where: { id: friendshipId }
+    });
+    if (!request) {
+      return res.status(404).json({ error: 'Friend request not found' });
+    }
+
+    await prisma.friendRequest.delete({
+      where: { id: friendshipId }
+    });
+
+    res.json({ success: true, message: 'Friend request rejected/deleted' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Server error' });
+  }
+});
+
 // GET /api/friends
 app.get('/api/friends', async (req: Request, res: Response): Promise<any> => {
   const { userId } = req.query;
@@ -806,6 +831,35 @@ app.get('/api/circles', async (req: Request, res: Response): Promise<any> => {
     res.json({ circles });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Server error' });
+  }
+});
+
+// DELETE /api/circles/:id
+app.delete('/api/circles/:id', async (req: Request, res: Response): Promise<any> => {
+  const circleId = req.params.id as string;
+  const ownerId = req.body.userId as string;
+  if (!circleId || !ownerId) {
+    return res.status(400).json({ error: 'Circle ID and User ID are required' });
+  }
+
+  try {
+    const circle = await prisma.circle.findUnique({ where: { id: circleId } });
+    if (!circle) {
+      return res.status(404).json({ error: 'Circle not found' });
+    }
+
+    if (circle.ownerId !== ownerId) {
+      return res.status(403).json({ error: 'Unauthorized to delete this circle' });
+    }
+
+    if (circle.name === 'Best Friends') {
+      return res.status(400).json({ error: 'Cannot delete your default circle' });
+    }
+
+    await prisma.circle.delete({ where: { id: circleId } });
+    res.json({ success: true, message: 'Circle deleted successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Server error deleting circle' });
   }
 });
 

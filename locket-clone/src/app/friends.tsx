@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
 
 export default function FriendsAndCirclesScreen() {
-  const { user, friends, circles, sendFriendRequest, acceptFriendRequest, createCircle, addCircleMember, isLoading, createInvite } = useApp();
+  const { user, friends, circles, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, createCircle, deleteCircle, addCircleMember, isLoading, createInvite } = useApp();
   const [inviteCodeText, setInviteCodeText] = useState<string | null>(null);
   
   // Tabs
@@ -86,6 +86,38 @@ export default function FriendsAndCirclesScreen() {
     }
   };
 
+  const handleRejectRequest = async (friendshipId: string) => {
+    setFeedbackMsg(null);
+    try {
+      await rejectFriendRequest(friendshipId);
+      setFeedbackMsg({ text: 'Friend request rejected.', isError: false });
+    } catch (err: any) {
+      setFeedbackMsg({ text: err.message || 'Failed to reject friend request', isError: true });
+    }
+  };
+
+  const handleDeleteCircle = (circleId: string, circleName: string) => {
+    Alert.alert(
+      'Delete Circle',
+      `Are you sure you want to delete the circle "${circleName}"? All shared photos in this circle will also be deleted.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteCircle(circleId);
+              setFeedbackMsg({ text: `Circle "${circleName}" deleted successfully!`, isError: false });
+            } catch (err: any) {
+              setFeedbackMsg({ text: err.message || 'Failed to delete circle', isError: true });
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleCreateCircle = async () => {
     if (!circleNameInput) return;
     setFeedbackMsg(null);
@@ -126,9 +158,14 @@ export default function FriendsAndCirclesScreen() {
             <Text style={styles.pendingOutgoingText}>Sent</Text>
           </View>
         ) : (
-          <Pressable style={styles.actionBtnAccept} onPress={() => handleAcceptRequest(item.friendshipId)}>
-            <Text style={styles.actionBtnAcceptText}>Accept</Text>
-          </Pressable>
+          <View style={styles.requestActionsRow}>
+            <Pressable style={styles.actionBtnAccept} onPress={() => handleAcceptRequest(item.friendshipId)}>
+              <Text style={styles.actionBtnAcceptText}>Accept</Text>
+            </Pressable>
+            <Pressable style={styles.actionBtnReject} onPress={() => handleRejectRequest(item.friendshipId)}>
+              <Text style={styles.actionBtnRejectText}>Reject</Text>
+            </Pressable>
+          </View>
         )
       ) : (
         <View style={styles.friendBadge}>
@@ -329,10 +366,20 @@ export default function FriendsAndCirclesScreen() {
                         {circle.ownerId === user?.id ? 'Owned' : `Owned by @${circle.owner.username}`}
                       </Text>
                     </View>
-                    <Pressable style={styles.addMemberBtn} onPress={() => setSelectedCircleForAdd(circle)}>
-                      <Feather name="user-plus" size={16} color="#fff" />
-                      <Text style={styles.addMemberBtnText}>Add</Text>
-                    </Pressable>
+                    <View style={styles.circleActionsRow}>
+                      <Pressable style={styles.addMemberBtn} onPress={() => setSelectedCircleForAdd(circle)}>
+                        <Feather name="user-plus" size={16} color="#fff" />
+                        <Text style={styles.addMemberBtnText}>Add</Text>
+                      </Pressable>
+                      {circle.ownerId === user?.id && circle.circleName !== 'Best Friends' && (
+                        <Pressable 
+                          style={styles.deleteCircleBtn} 
+                          onPress={() => handleDeleteCircle(circle.id, circle.circleName)}
+                        >
+                          <Feather name="trash-2" size={15} color={theme.colors.error} />
+                        </Pressable>
+                      )}
+                    </View>
                   </View>
 
                   <View style={styles.circleMembersRow}>
@@ -829,5 +876,39 @@ const styles = StyleSheet.create({
     ...theme.typography.bodyMd,
     color: theme.colors.primary,
     fontWeight: 'bold',
+  },
+  requestActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionBtnReject: {
+    backgroundColor: 'rgba(186, 26, 26, 0.08)',
+    borderColor: 'rgba(186, 26, 26, 0.2)',
+    borderWidth: 1,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.rounding.pill,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionBtnRejectText: {
+    ...theme.typography.bodyMd,
+    color: theme.colors.error,
+    fontWeight: 'bold',
+  },
+  circleActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteCircleBtn: {
+    backgroundColor: 'rgba(186, 26, 26, 0.08)',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(186, 26, 26, 0.2)',
   },
 });
