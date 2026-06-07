@@ -203,8 +203,8 @@ app.post('/api/auth/register', async (req: Request, res: Response): Promise<any>
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
-          { username },
-          email ? { email } : {},
+          { username: { equals: username, mode: 'insensitive' as const } },
+          email ? { email: { equals: email, mode: 'insensitive' as const } } : {},
           phone ? { phone } : {}
         ].filter(cond => Object.keys(cond).length > 0)
       }
@@ -273,8 +273,8 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<any> =>
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { username: loginIdentifier },
-          { email: loginIdentifier },
+          { username: { equals: loginIdentifier, mode: 'insensitive' as const } },
+          { email: { equals: loginIdentifier, mode: 'insensitive' as const } },
           { phone: loginIdentifier }
         ]
       }
@@ -481,7 +481,14 @@ app.post('/api/friends/request', async (req: Request, res: Response): Promise<an
   }
 
   try {
-    const receiver = await prisma.user.findUnique({ where: { username: receiverUsername } });
+    const receiver = await prisma.user.findFirst({
+      where: {
+        username: {
+          equals: receiverUsername,
+          mode: 'insensitive' as const
+        }
+      }
+    });
     if (!receiver) {
       return res.status(404).json({ error: 'Receiver user not found' });
     }

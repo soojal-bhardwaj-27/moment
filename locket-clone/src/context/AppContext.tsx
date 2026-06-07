@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 
@@ -113,6 +114,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
   const apiUrl = getApiUrl();
 
+  // Load saved session on startup
+  useEffect(() => {
+    const loadSession = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('moments_user_session');
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+        }
+      } catch (err) {
+        console.error('Failed to load persisted session:', err);
+      }
+    };
+    loadSession();
+  }, []);
+
   // Listen for deep links
   useEffect(() => {
     const handleUrl = (url: string | null) => {
@@ -216,6 +233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Registration failed');
       setUser(data.user);
+      await AsyncStorage.setItem('moments_user_session', JSON.stringify(data.user));
       setPendingInviteCode(null);
       return data.user;
     } catch (err: any) {
@@ -258,6 +276,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Verification failed');
       setUser(data.user);
+      await AsyncStorage.setItem('moments_user_session', JSON.stringify(data.user));
       setPendingInviteCode(null);
       return data.user;
     } catch (err: any) {
@@ -270,6 +289,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = async () => {
     setUser(null);
+    await AsyncStorage.removeItem('moments_user_session');
   };
 
   const updatePushToken = async (pushToken: string) => {
