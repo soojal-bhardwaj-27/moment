@@ -1478,7 +1478,7 @@ app.get('/invite/:inviteCode', async (req: Request, res: Response): Promise<any>
     <h1>You've been invited!</h1>
     <p class="subtitle">Join <strong>${inviterName}</strong> on Moments to share photos directly onto each other's home screens.</p>
     
-    <a href="https://expo.dev/artifacts/eas/xhoJKPjg6uu6Ae46ibTiw1.apk" class="btn">Download Moments for Android</a>
+    <a href="https://moment-x8we.onrender.com/download/android" class="btn">Download Moments for Android</a>
     
     <div class="code-card">
       <div class="code-title">Your Invite Code</div>
@@ -1607,6 +1607,17 @@ app.post('/api/invites/accept', async (req: Request, res: Response): Promise<any
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to accept invitation' });
   }
+});
+
+// -----------------------------------------------------------------------------
+// App Download Redirect — update LATEST_APK_URL here whenever you build a new APK
+// -----------------------------------------------------------------------------
+
+const LATEST_APK_URL = 'https://expo.dev/artifacts/eas/xhoJKPjg6uu6Ae46ibTiw1.apk';
+
+// GET /download/android  →  always redirects to the latest APK
+app.get('/download/android', (_req, res) => {
+  res.redirect(302, LATEST_APK_URL);
 });
 
 // -----------------------------------------------------------------------------
