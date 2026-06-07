@@ -507,6 +507,13 @@ app.post('/api/friends/request', async (req: Request, res: Response): Promise<an
       return res.status(400).json({ error: 'Cannot send friend request to yourself' });
     }
 
+    const sender = await prisma.user.findUnique({
+      where: { id: senderId }
+    });
+    if (!sender) {
+      return res.status(404).json({ error: 'Sender user not found' });
+    }
+
     // Check if they are already friends
     const alreadyFriends = await prisma.friend.findFirst({
       where: {
@@ -548,7 +555,7 @@ app.post('/api/friends/request', async (req: Request, res: Response): Promise<an
         userId: receiver.id,
         type: 'FRIEND_REQUEST',
         title: 'New Friend Request',
-        body: `New request from @${receiver.username}`,
+        body: `New request from @${sender.username}`,
         isRead: false
       }
     });
@@ -606,16 +613,12 @@ app.get('/api/friends', async (req: Request, res: Response): Promise<any> => {
   }
 
   try {
-    // 1. Fetch accepted friends
+    // 1. Fetch accepted friends (relying on reciprocal records in the friend table)
     const activeFriends = await prisma.friend.findMany({
       where: {
-        OR: [
-          { userId },
-          { friendId: userId }
-        ]
+        userId
       },
       include: {
-        user: true,
         friend: true
       }
     });
@@ -635,8 +638,7 @@ app.get('/api/friends', async (req: Request, res: Response): Promise<any> => {
     });
 
     const formattedFriends = activeFriends.map(f => {
-      const isUser = f.userId === userId;
-      const friendUser = isUser ? f.friend : f.user;
+      const friendUser = f.friend;
       return {
         friendshipId: f.id,
         friendId: friendUser.id,

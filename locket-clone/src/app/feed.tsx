@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, FlatList, Pressable, Image, ActivityIndicator, Modal, Dimensions, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -13,6 +13,10 @@ const EMOJIS = ['❤️', '😂', '🔥', '😍', '😮', '👍'];
 export default function FeedScreen() {
   const { feed, isLoading, refreshAll, reactToMoment } = useApp();
   const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
+
+  useEffect(() => {
+    refreshAll();
+  }, []);
 
   // Group reactions by emoji to count them
   const getReactionCounts = (moment: Moment) => {
