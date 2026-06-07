@@ -3,6 +3,8 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+declare const process: any;
+
 console.log("[Prisma Config] DATABASE_URL is defined:", !!process.env.DATABASE_URL);
 
 export default defineConfig({
