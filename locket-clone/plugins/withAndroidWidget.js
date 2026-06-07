@@ -97,6 +97,32 @@ function withAndroidWidget(config) {
           path.join(srcDir, 'MomentsWidget.kt')
         );
         
+        // Copy MomentsWidgetModule.kt
+        fs.copyFileSync(
+          path.join(projectRoot, 'native/android/MomentsWidgetModule.kt'),
+          path.join(srcDir, 'MomentsWidgetModule.kt')
+        );
+
+        // Copy MomentsWidgetPackage.kt
+        fs.copyFileSync(
+          path.join(projectRoot, 'native/android/MomentsWidgetPackage.kt'),
+          path.join(srcDir, 'MomentsWidgetPackage.kt')
+        );
+
+        // Register MomentsWidgetPackage in MainApplication.kt
+        const mainAppFile = path.join(androidAppSrc, 'java', packagePath, 'MainApplication.kt');
+        if (fs.existsSync(mainAppFile)) {
+          let content = fs.readFileSync(mainAppFile, 'utf8');
+          if (!content.includes('MomentsWidgetPackage()')) {
+            content = content.replace(
+              '// Packages that cannot be autolinked yet can be added manually here, for example:',
+              '// Packages that cannot be autolinked yet can be added manually here, for example:\n          add(MomentsWidgetPackage())'
+            );
+            fs.writeFileSync(mainAppFile, content, 'utf8');
+            console.log('[Moments Android Widget Plugin] Successfully registered MomentsWidgetPackage in MainApplication.kt');
+          }
+        }
+
         // Copy layout
         fs.copyFileSync(
           path.join(projectRoot, 'native/android/res/layout/widget_layout.xml'),
@@ -115,7 +141,7 @@ function withAndroidWidget(config) {
           path.join(resDir, 'drawable/widget_background.xml')
         );
         
-        console.log('[Moments Android Widget Plugin] Successfully copied native resources to prebuild directories.');
+        console.log('[Moments Android Widget Plugin] Successfully copied native resources and registered package.');
       } catch (err) {
         console.error('[Moments Android Widget Plugin] Error copying native files:', err);
         throw err; // rethrow so that the build fails immediately with the error and we see logs

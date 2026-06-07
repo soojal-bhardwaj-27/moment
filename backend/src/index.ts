@@ -4,6 +4,8 @@ import { PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -15,6 +17,7 @@ const prisma = new PrismaClient({ adapter });
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // -----------------------------------------------------------------------------
 // Helper Functions for Data Formatting
@@ -588,13 +591,27 @@ app.post('/api/friends/accept', async (req: Request, res: Response): Promise<any
 
     await connectUsersAsFriends(request.senderId, request.receiverId);
 
+    const sender = await prisma.user.findUnique({ where: { id: request.senderId } });
+    const receiver = await prisma.user.findUnique({ where: { id: request.receiverId } });
+
     // Create a notification for the sender
     await prisma.notification.create({
       data: {
         userId: request.senderId,
         type: 'INVITE_ACCEPTED',
-        title: 'Request Accepted',
-        body: 'Your friend request has been accepted!',
+        title: 'Friend Request Accepted',
+        body: `@${receiver?.username || 'Someone'} accepted your friend request!`,
+        isRead: false
+      }
+    });
+
+    // Create a notification for the receiver
+    await prisma.notification.create({
+      data: {
+        userId: request.receiverId,
+        type: 'INVITE_ACCEPTED',
+        title: 'Friend Connected',
+        body: `You are now friends with @${sender?.username || 'someone'}!`,
         isRead: false
       }
     });
@@ -935,6 +952,79 @@ app.delete('/api/moments/:id', async (req: Request, res: Response): Promise<any>
     res.json({ success: true, message: 'Moment deleted successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Server error deleting moment' });
+  }
+});
+
+// POST /api/upload
+app.post('/api/upload', async (req: Request, res: Response): Promise<any> => {
+  const { base64Data, filename } = req.body;
+  if (!base64Data) {
+    return res.status(400).json({ error: 'Base64 data is required' });
+  }
+
+  try {
+    const uploadsDir = path.join(__dirname, '../uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Image, 'base64');
+    
+    const name = filename || `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.jpg`;
+    const filePath = path.join(uploadsDir, name);
+    
+    fs.writeFileSync(filePath, buffer);
+
+    const publicUrl = `${req.protocol}://${req.get('host')}/uploads/${name}`;
+    res.json({ url: publicUrl });
+  } catch (error: any) {
+    console.error('Error saving image:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
+// GET /api/notifications
+app.get('/api/notifications', async (req: Request, res: Response): Promise<any> => {
+  const { userId } = req.query;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
+
+  try {
+    const notifications = await prisma.notification.findMany({
+      where: { userId, isRead: false },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+    res.json({ notifications });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Server error loading notifications' });
+  }
+});
+
+// POST /api/notifications/read
+app.post('/api/notifications/read', async (req: Request, res: Response): Promise<any> => {
+  const { userId, notificationId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
+
+  try {
+    if (notificationId) {
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: { isRead: true }
+      });
+    } else {
+      await prisma.notification.updateMany({
+        where: { userId, isRead: false },
+        data: { isRead: true }
+      });
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Server error updating notifications' });
   }
 });
 

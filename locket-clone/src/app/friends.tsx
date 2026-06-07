@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Text, TextInput, FlatList, Pressable, ActivityIndicator, ScrollView, Modal, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Text, TextInput, FlatList, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Clipboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '../../theme';
@@ -7,11 +7,31 @@ import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
 
 export default function FriendsAndCirclesScreen() {
-  const { friends, circles, sendFriendRequest, acceptFriendRequest, createCircle, addCircleMember, isLoading, createInvite } = useApp();
+  const { user, friends, circles, sendFriendRequest, acceptFriendRequest, createCircle, addCircleMember, isLoading, createInvite } = useApp();
+  const [inviteCodeText, setInviteCodeText] = useState<string | null>(null);
   
   // Tabs
   const [activeTab, setActiveTab] = useState<'FRIENDS' | 'CIRCLES'>('FRIENDS');
   const [inviteLoading, setInviteLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchInviteCode = async () => {
+      try {
+        const invite = await createInvite('copy');
+        setInviteCodeText(invite.inviteCode);
+      } catch (err) {
+        console.error('Failed to pre-fetch invite code:', err);
+      }
+    };
+    fetchInviteCode();
+  }, []);
+
+  const handleCopyCode = () => {
+    if (inviteCodeText) {
+      Clipboard.setString(inviteCodeText);
+      Alert.alert('Copied!', 'Invite code copied to clipboard. Share it with your friends!');
+    }
+  };
 
   // Input states
   const [friendSearch, setFriendSearch] = useState('');
@@ -194,6 +214,20 @@ export default function FriendsAndCirclesScreen() {
                 </View>
                 {inviteLoading && <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginLeft: 8 }} />}
               </View>
+
+              {inviteCodeText && (
+                <View style={styles.inviteCodeDisplayContainer}>
+                  <Text style={styles.inviteCodeLabel}>YOUR INVITE CODE</Text>
+                  <View style={styles.inviteCodeRow}>
+                    <Text style={styles.inviteCodeValue}>{inviteCodeText}</Text>
+                    <Pressable style={styles.inviteCodeCopyBtn} onPress={handleCopyCode}>
+                      <Feather name="copy" size={14} color={theme.colors.primary} />
+                      <Text style={styles.inviteCodeCopyText}>Copy</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
               <View style={styles.inviteButtonsRow}>
                 <Pressable 
                   style={[styles.inviteShareBtn, { backgroundColor: '#25D366' }]} 
@@ -288,9 +322,11 @@ export default function FriendsAndCirclesScreen() {
                 <View key={circle.id} style={styles.circleCard}>
                   <View style={styles.circleCardHeader}>
                     <View style={styles.circleInfo}>
-                      <Text style={styles.circleCardTitle}>{circle.circleName}</Text>
+                      <Text style={styles.circleCardTitle}>
+                        {circle.ownerId === user?.id ? circle.circleName : `${circle.owner.username}'s ${circle.circleName}`}
+                      </Text>
                       <Text style={styles.circleOwnerLabel}>
-                        {circle.ownerId === circle.members[0]?.userId ? 'Owned' : 'Member'}
+                        {circle.ownerId === user?.id ? 'Owned' : `Owned by @${circle.owner.username}`}
                       </Text>
                     </View>
                     <Pressable style={styles.addMemberBtn} onPress={() => setSelectedCircleForAdd(circle)}>
@@ -754,5 +790,44 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.primary,
     marginLeft: 8,
+  },
+  inviteCodeDisplayContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderRadius: theme.rounding.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+  },
+  inviteCodeLabel: {
+    ...theme.typography.labelCaps,
+    fontSize: 9,
+    color: theme.colors.outline,
+    marginBottom: 6,
+  },
+  inviteCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  inviteCodeValue: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 22,
+    color: '#fff',
+    letterSpacing: 2,
+  },
+  inviteCodeCopyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(108, 99, 255, 0.1)',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 6,
+    borderRadius: theme.rounding.pill,
+  },
+  inviteCodeCopyText: {
+    ...theme.typography.bodyMd,
+    color: theme.colors.primary,
+    fontWeight: 'bold',
   },
 });

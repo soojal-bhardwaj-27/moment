@@ -41,7 +41,7 @@ const FLOATING_MOMENTS = [
 ];
 
 export default function StartScreen() {
-  const { user, isSessionLoaded, register, login, verify, isLoading, error } = useApp();
+  const { user, isSessionLoaded, register, login, verify, isLoading, error, pendingInviteCode } = useApp();
   const [screenState, setScreenState] = useState<'SPLASH' | 'AUTH_DASHBOARD' | 'OTP' | 'SUCCESS'>('SPLASH');
   const [authMode, setAuthMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
 
@@ -50,7 +50,14 @@ export default function StartScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [otp, setOtp] = useState('');
+
+  useEffect(() => {
+    if (pendingInviteCode) {
+      setInviteCode(pendingInviteCode);
+    }
+  }, [pendingInviteCode]);
   
   // Internal state
   const [targetUserId, setTargetUserId] = useState('');
@@ -114,7 +121,7 @@ export default function StartScreen() {
         return;
       }
       try {
-        const newUser = await register(trimmedUsername, trimmedName, trimmedEmail, trimmedPhone);
+        const newUser = await register(trimmedUsername, trimmedName, trimmedEmail, trimmedPhone, undefined, inviteCode);
         setTargetUserId(newUser.id);
         setScreenState('OTP');
       } catch (err: any) {
@@ -285,6 +292,18 @@ export default function StartScreen() {
                         keyboardType="phone-pad"
                         value={phone}
                         onChangeText={setPhone}
+                      />
+                    </View>
+
+                    <View style={styles.inputFieldWrapper}>
+                      <Feather name="gift" size={16} color={theme.colors.onSurfaceVariant} style={styles.inputFieldIcon} />
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="Invite Code (Optional)"
+                        placeholderTextColor={theme.colors.onSurfaceVariant}
+                        autoCapitalize="characters"
+                        value={inviteCode}
+                        onChangeText={setInviteCode}
                       />
                     </View>
                   </>

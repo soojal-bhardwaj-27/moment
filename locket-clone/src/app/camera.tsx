@@ -21,7 +21,7 @@ const CuratedPhotos = [
 ];
 
 export default function CameraScreen() {
-  const { user, circles, uploadMoment, isLoading, friends } = useApp();
+  const { user, circles, uploadMoment, isLoading, friends, notifications, markNotificationsAsRead } = useApp();
   const acceptedFriends = friends?.filter(f => f.status === 'ACCEPTED') || [];
   const hasNoFriends = acceptedFriends.length === 0;
   const [permission, requestPermission] = useCameraPermissions();
@@ -31,6 +31,7 @@ export default function CameraScreen() {
 
   // Sharing flows state
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [capturedBase64, setCapturedBase64] = useState<string | null>(null);
   const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -73,20 +74,23 @@ export default function CameraScreen() {
         // Fallback for web testing: use a curated photo
         const randomPhoto = CuratedPhotos[Math.floor(Math.random() * CuratedPhotos.length)];
         setCapturedPhoto(randomPhoto);
+        setCapturedBase64(null);
         return;
       }
 
       if (cameraRef.current) {
-        const options = { quality: 0.8, skipProcessing: false };
+        const options = { quality: 0.8, base64: true, skipProcessing: false };
         const photo = await cameraRef.current.takePictureAsync(options);
         console.log('Photo captured locally:', photo.uri);
         setCapturedPhoto(photo.uri);
+        setCapturedBase64(photo.base64 || null);
       }
     } catch (err: any) {
       console.error('Failed to take picture:', err);
       // Fallback in case device camera fails/is blocked
       const randomPhoto = CuratedPhotos[Math.floor(Math.random() * CuratedPhotos.length)];
       setCapturedPhoto(randomPhoto);
+      setCapturedBase64(null);
     }
   }
 
@@ -98,9 +102,10 @@ export default function CameraScreen() {
     setIsSending(true);
     setErrorText(null);
     try {
-      await uploadMoment(capturedPhoto, selectedCircleId, caption);
+      await uploadMoment(capturedPhoto, selectedCircleId, caption, capturedBase64);
       // Reset state and show camera again
       setCapturedPhoto(null);
+      setCapturedBase64(null);
       setCaption('');
       // Navigate to feed so they can see their new moment
       router.push('/feed');
@@ -202,11 +207,47 @@ export default function CameraScreen() {
     );
   }
 
+  const inviteAcceptedNotification = notifications.find(n => n.type === 'INVITE_ACCEPTED');
+
+  const handleCreateCircleFromNotification = async (notificationId: string) => {
+    await markNotificationsAsRead(notificationId);
+    router.push('/friends');
+  };
+
   // ---------------------------------------------------------------------------
   // CAMERA VIEW UI
   // ---------------------------------------------------------------------------
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {inviteAcceptedNotification && (
+        <Animated.View 
+          entering={FadeIn.duration(400)} 
+          style={styles.notificationBanner}
+        >
+          <View style={styles.notificationIconBg}>
+            <Feather name="bell" size={18} color="#fff" />
+          </View>
+          <View style={styles.notificationContent}>
+            <Text style={styles.notificationTitle}>{inviteAcceptedNotification.title}</Text>
+            <Text style={styles.notificationBody}>{inviteAcceptedNotification.body}</Text>
+            <View style={styles.notificationActions}>
+              <Pressable 
+                style={styles.notificationActionBtn} 
+                onPress={() => handleCreateCircleFromNotification(inviteAcceptedNotification.id)}
+              >
+                <Text style={styles.notificationActionText}>Create Circle</Text>
+              </Pressable>
+              <Pressable 
+                style={styles.notificationDismissBtn} 
+                onPress={() => markNotificationsAsRead(inviteAcceptedNotification.id)}
+              >
+                <Text style={styles.notificationDismissText}>Dismiss</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Animated.View>
+      )}
+
       {/* Top Navigation Bar */}
       <View style={styles.navBar}>
         <Pressable onPress={() => router.push('/friends')} style={styles.iconButton}>
@@ -548,5 +589,75 @@ const styles = StyleSheet.create({
     ...theme.typography.bodyMd,
     fontWeight: 'bold',
     color: theme.colors.primary,
+  },
+  notificationBanner: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 70 : 50,
+    left: theme.spacing.md,
+    right: theme.spacing.md,
+    backgroundColor: 'rgba(18, 18, 22, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: theme.rounding.lg,
+    padding: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.md,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  notificationIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationTitle: {
+    ...theme.typography.bodyLg,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  notificationBody: {
+    ...theme.typography.bodyMd,
+    color: theme.colors.onSurfaceVariant,
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  notificationActions: {
+    flexDirection: 'row',
+    marginTop: theme.spacing.sm,
+    gap: theme.spacing.md,
+  },
+  notificationActionBtn: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 6,
+    borderRadius: theme.rounding.md,
+  },
+  notificationActionText: {
+    ...theme.typography.labelCaps,
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  notificationDismissBtn: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 6,
+    justifyContent: 'center',
+  },
+  notificationDismissText: {
+    ...theme.typography.labelCaps,
+    fontSize: 10,
+    color: theme.colors.outline,
   },
 });

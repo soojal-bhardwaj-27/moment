@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
@@ -71,16 +71,27 @@ export interface Moment {
   reactions: Reaction[];
 }
 
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'NEW_MOMENT' | 'REACTION' | 'FRIEND_REQUEST' | 'INVITE_ACCEPTED';
+  title: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 interface AppContextType {
   user: User | null;
   friends: Friend[];
   circles: Circle[];
   feed: Moment[];
+  notifications: Notification[];
   isLoading: boolean;
   isSessionLoaded: boolean;
   error: string | null;
   apiUrl: string;
-  register: (username: string, name: string, email: string, phone: string, avatarUrl?: string) => Promise<User>;
+  register: (username: string, name: string, email: string, phone: string, avatarUrl?: string, inviteCode?: string) => Promise<User>;
   login: (loginIdentifier: string) => Promise<{ user: User; otpCode: string }>;
   verify: (userId: string, code: string) => Promise<User>;
   logout: () => Promise<void>;
@@ -89,14 +100,43 @@ interface AppContextType {
   acceptFriendRequest: (friendshipId: string) => Promise<void>;
   createCircle: (circleName: string) => Promise<Circle>;
   addCircleMember: (circleId: string, userId: string) => Promise<void>;
-  uploadMoment: (photoUrl: string, circleId: string, caption?: string) => Promise<Moment>;
+  uploadMoment: (photoUrl: string, circleId: string, caption?: string, base64Data?: string | null) => Promise<Moment>;
   reactToMoment: (momentId: string, emoji: string) => Promise<void>;
   deleteMoment: (momentId: string) => Promise<void>;
   refreshAll: () => Promise<void>;
   createInvite: (platform?: string) => Promise<{ inviteCode: string; inviteLink: string }>;
   pendingInviteCode: string | null;
   setPendingInviteCode: (code: string | null) => void;
+  markNotificationsAsRead: (notificationId?: string) => Promise<void>;
 }
+
+const formatRelativeTime = (dateStr: string): string => {
+  try {
+    const now = new Date();
+    const created = new Date(dateStr);
+    const diffMs = now.getTime() - created.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${Math.floor(diffHours / 24)}d ago`;
+  } catch (e) {
+    return 'Recently';
+  }
+};
+
+const updateNativeWidget = (senderName: string, createdAt: string, photoUrl: string) => {
+  if (Platform.OS === 'android' && NativeModules.MomentsWidgetModule) {
+    try {
+      const timeStr = formatRelativeTime(createdAt);
+      NativeModules.MomentsWidgetModule.updateWidget(senderName, timeStr, photoUrl);
+      console.log('[Widget Update] Success updating Android widget:', senderName, timeStr, photoUrl);
+    } catch (err) {
+      console.error('[Widget Update] Failed updating Android widget:', err);
+    }
+  }
+};
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -110,6 +150,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [friends, setFriends] = useState<Friend[]>([]);
   const [circles, setCircles] = useState<Circle[]>([]);
   const [feed, setFeed] = useState<Moment[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSessionLoaded, setIsSessionLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,7 +246,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Load feed
       const feedRes = await fetch(`${apiUrl}/api/moments/feed?userId=${user.id}`);
       const feedData = await feedRes.json();
-      if (feedRes.ok) setFeed(feedData.moments || []);
+      if (feedRes.ok) {
+        const moments = feedData.moments || [];
+        setFeed(moments);
+        if (moments.length > 0) {
+          const latest = moments[0];
+          updateNativeWidget(`@${latest.sender.username}`, latest.createdAt, latest.photoUrl);
+        }
+      }
+
+      // Load notifications
+      const notificationsRes = await fetch(`${apiUrl}/api/notifications?userId=${user.id}`);
+      const notificationsData = await notificationsRes.json();
+      if (notificationsRes.ok) {
+        setNotifications(notificationsData.notifications || []);
+      }
 
     } catch (err: any) {
       console.error('Error refreshing app state:', err);
@@ -222,12 +277,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFriends([]);
       setCircles([]);
       setFeed([]);
+      setNotifications([]);
     }
   }, [user]);
 
-  const register = async (username: string, name: string, email: string, phone: string, avatarUrl?: string) => {
+  const register = async (username: string, name: string, email: string, phone: string, avatarUrl?: string, inviteCode?: string) => {
     setIsLoading(true);
     setError(null);
+    const codeToUse = inviteCode?.trim() || pendingInviteCode;
     try {
       const res = await fetch(`${apiUrl}/api/auth/register`, {
         method: 'POST',
@@ -238,7 +295,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           email: email.trim(), 
           phone: phone.trim(), 
           avatarUrl, 
-          inviteCode: pendingInviteCode 
+          inviteCode: codeToUse 
         })
       });
       const data = await res.json();
@@ -383,21 +440,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const uploadMoment = async (photoUrl: string, circleId: string, caption?: string) => {
+  const uploadMoment = async (photoUrl: string, circleId: string, caption?: string, base64Data?: string | null) => {
     if (!user) throw new Error('Not authenticated');
     try {
+      let finalPhotoUrl = photoUrl;
+      if (base64Data) {
+        // Upload base64 first to get public url
+        const uploadRes = await fetch(`${apiUrl}/api/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64Data })
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.error || 'Failed to upload photo');
+        finalPhotoUrl = uploadData.url;
+      }
+
       const res = await fetch(`${apiUrl}/api/moments/upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senderId: user.id, circleId, photoUrl, caption })
+        body: JSON.stringify({ senderId: user.id, circleId, photoUrl: finalPhotoUrl, caption })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to upload moment');
       await refreshAll();
+      
+      if (data.moment) {
+        updateNativeWidget('Me', data.moment.createdAt, data.moment.photoUrl);
+      }
       return data.moment;
     } catch (err: any) {
       setError(err.message);
       throw err;
+    }
+  };
+
+  const markNotificationsAsRead = async (notificationId?: string) => {
+    if (!user) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/notifications/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, notificationId })
+      });
+      if (res.ok) {
+        if (notificationId) {
+          setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        } else {
+          setNotifications([]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to mark notifications as read:', err);
     }
   };
 
@@ -462,6 +556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         friends,
         circles,
         feed,
+        notifications,
         isLoading,
         isSessionLoaded,
         error,
@@ -481,7 +576,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshAll,
         createInvite,
         pendingInviteCode,
-        setPendingInviteCode
+        setPendingInviteCode,
+        markNotificationsAsRead
       }}
     >
       {children}
