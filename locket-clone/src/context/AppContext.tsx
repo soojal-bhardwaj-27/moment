@@ -98,15 +98,9 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Automatically detect host IP for local server connection (especially on physical devices)
 const getApiUrl = () => {
-  const hostUri = Constants.expoConfig?.hostUri;
-  const host = hostUri ? hostUri.split(':')[0] : null;
-  if (host) {
-    return `http://${host}:3000`;
-  }
-  // Fallback to the development machine's actual local IP address so physical devices running the APK can connect
-  return 'http://192.168.1.33:3000';
+  // Use the live deployed Render backend URL so the app works on all devices anywhere
+  return 'https://moment-x8we.onrender.com';
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
