@@ -194,7 +194,12 @@ async function handleReferralIfProvided(inviteCode: string | undefined, inviteeI
 
 // POST /api/auth/register
 app.post('/api/auth/register', async (req: Request, res: Response): Promise<any> => {
-  const { username, name, email, phone, avatarUrl, inviteCode } = req.body;
+  let { username, name, email, phone, avatarUrl, inviteCode } = req.body;
+  username = username?.trim();
+  name = name?.trim();
+  email = email?.trim();
+  phone = phone?.trim();
+
   if (!username) {
     return res.status(400).json({ error: 'Username is required' });
   }
@@ -264,7 +269,8 @@ app.post('/api/auth/register', async (req: Request, res: Response): Promise<any>
 
 // POST /api/auth/login
 app.post('/api/auth/login', async (req: Request, res: Response): Promise<any> => {
-  const { loginIdentifier } = req.body; // username, email, or phone
+  let { loginIdentifier } = req.body; // username, email, or phone
+  loginIdentifier = loginIdentifier?.trim();
   if (!loginIdentifier) {
     return res.status(400).json({ error: 'Login identifier (username/email/phone) is required' });
   }
@@ -381,7 +387,10 @@ app.post('/api/auth/google', async (req: Request, res: Response): Promise<any> =
 
 // POST /api/auth/phone
 app.post('/api/auth/phone', async (req: Request, res: Response): Promise<any> => {
-  const { phone, username, name, inviteCode } = req.body;
+  let { phone, username, name, inviteCode } = req.body;
+  phone = phone?.trim();
+  username = username?.trim();
+  name = name?.trim();
   if (!phone) {
     return res.status(400).json({ error: 'Phone number is required' });
   }
@@ -475,7 +484,8 @@ app.post('/api/auth/update-push-token', async (req: Request, res: Response): Pro
 
 // POST /api/friends/request
 app.post('/api/friends/request', async (req: Request, res: Response): Promise<any> => {
-  const { senderId, receiverUsername } = req.body;
+  let { senderId, receiverUsername } = req.body;
+  receiverUsername = receiverUsername?.trim();
   if (!senderId || !receiverUsername) {
     return res.status(400).json({ error: 'Sender ID and receiver username are required' });
   }

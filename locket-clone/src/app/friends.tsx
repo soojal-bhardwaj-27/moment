@@ -26,11 +26,12 @@ export default function FriendsAndCirclesScreen() {
   const acceptedFriends = friends.filter(f => f.status === 'ACCEPTED');
 
   const handleAddFriend = async () => {
-    if (!friendSearch) return;
+    const trimmedSearch = friendSearch.trim();
+    if (!trimmedSearch) return;
     setFeedbackMsg(null);
     try {
-      await sendFriendRequest(friendSearch);
-      setFeedbackMsg({ text: `Friend request sent to @${friendSearch}!`, isError: false });
+      await sendFriendRequest(trimmedSearch);
+      setFeedbackMsg({ text: `Friend request sent to @${trimmedSearch}!`, isError: false });
       setFriendSearch('');
     } catch (err: any) {
       setFeedbackMsg({ text: err.message || 'Failed to send request', isError: true });

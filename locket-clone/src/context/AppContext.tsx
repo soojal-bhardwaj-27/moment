@@ -77,6 +77,7 @@ interface AppContextType {
   circles: Circle[];
   feed: Moment[];
   isLoading: boolean;
+  isSessionLoaded: boolean;
   error: string | null;
   apiUrl: string;
   register: (username: string, name: string, email: string, phone: string, avatarUrl?: string) => Promise<User>;
@@ -110,6 +111,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [circles, setCircles] = useState<Circle[]>([]);
   const [feed, setFeed] = useState<Moment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSessionLoaded, setIsSessionLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
   const apiUrl = getApiUrl();
@@ -125,6 +127,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (err) {
         console.error('Failed to load persisted session:', err);
+      } finally {
+        setIsSessionLoaded(true);
       }
     };
     loadSession();
@@ -228,7 +232,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await fetch(`${apiUrl}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, name, email, phone, avatarUrl, inviteCode: pendingInviteCode })
+        body: JSON.stringify({ 
+          username: username.trim(), 
+          name: name.trim(), 
+          email: email.trim(), 
+          phone: phone.trim(), 
+          avatarUrl, 
+          inviteCode: pendingInviteCode 
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Registration failed');
@@ -251,7 +262,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loginIdentifier })
+        body: JSON.stringify({ loginIdentifier: loginIdentifier.trim() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
@@ -311,7 +322,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await fetch(`${apiUrl}/api/friends/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senderId: user.id, receiverUsername })
+        body: JSON.stringify({ senderId: user.id, receiverUsername: receiverUsername.trim() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Friend request failed');
@@ -452,6 +463,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         circles,
         feed,
         isLoading,
+        isSessionLoaded,
         error,
         apiUrl,
         register,

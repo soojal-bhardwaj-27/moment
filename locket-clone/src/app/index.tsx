@@ -41,7 +41,7 @@ const FLOATING_MOMENTS = [
 ];
 
 export default function StartScreen() {
-  const { user, register, login, verify, isLoading, error } = useApp();
+  const { user, isSessionLoaded, register, login, verify, isLoading, error } = useApp();
   const [screenState, setScreenState] = useState<'SPLASH' | 'AUTH_DASHBOARD' | 'OTP' | 'SUCCESS'>('SPLASH');
   const [authMode, setAuthMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
 
@@ -88,44 +88,45 @@ export default function StartScreen() {
     return driftStyle2;
   };
 
-  // Redirect if logged in
+  // Redirect or transition to Auth Dashboard when session loading completes
   useEffect(() => {
-    if (user) {
-      router.replace('/camera');
+    if (isSessionLoaded) {
+      if (user) {
+        router.replace('/camera');
+      } else {
+        const timer = setTimeout(() => {
+          setScreenState('AUTH_DASHBOARD');
+        }, 1500); // 1.5 seconds on splash to look premium, then show login
+        return () => clearTimeout(timer);
+      }
     }
-  }, [user]);
-
-  // Splash Screen timer
-  useEffect(() => {
-    if (screenState === 'SPLASH') {
-      const timer = setTimeout(() => {
-        setScreenState('AUTH_DASHBOARD');
-      }, 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [screenState]);
+  }, [isSessionLoaded, user]);
 
   const handleAuthSubmit = async () => {
     setLocalError(null);
+    const trimmedUsername = username.trim();
     if (authMode === 'REGISTER') {
-      if (!username || !email || !name) {
+      const trimmedName = name.trim();
+      const trimmedEmail = email.trim();
+      const trimmedPhone = phone.trim();
+      if (!trimmedUsername || !trimmedEmail || !trimmedName) {
         setLocalError('Please fill in username, name and email');
         return;
       }
       try {
-        const newUser = await register(username, name, email, phone);
+        const newUser = await register(trimmedUsername, trimmedName, trimmedEmail, trimmedPhone);
         setTargetUserId(newUser.id);
         setScreenState('OTP');
       } catch (err: any) {
         setLocalError(err.message || 'Registration failed');
       }
     } else {
-      if (!username) {
+      if (!trimmedUsername) {
         setLocalError('Please enter your username, email or phone to login');
         return;
       }
       try {
-        const { user: loggedInUser, otpCode } = await login(username);
+        const { user: loggedInUser, otpCode } = await login(trimmedUsername);
         setTargetUserId(loggedInUser.id);
         console.log(`[Moments OTP] Mock Code is ${otpCode}`);
         setScreenState('OTP');
