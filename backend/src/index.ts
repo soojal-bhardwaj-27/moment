@@ -700,6 +700,54 @@ app.get('/api/friends', async (req: Request, res: Response): Promise<any> => {
   }
 });
 
+// DELETE /api/friends
+app.delete('/api/friends', async (req: Request, res: Response): Promise<any> => {
+  const { userId, friendId } = req.body;
+  if (!userId || !friendId) {
+    return res.status(400).json({ error: 'User ID and Friend ID are required' });
+  }
+
+  try {
+    // 1. Delete reciprocal friendship entries
+    await prisma.friend.deleteMany({
+      where: {
+        OR: [
+          { userId, friendId },
+          { userId: friendId, friendId: userId }
+        ]
+      }
+    });
+
+    // 2. Remove friendId from any circle owned by userId
+    const userCircles = await prisma.circle.findMany({
+      where: { ownerId: userId }
+    });
+    const userCircleIds = userCircles.map(c => c.id);
+    await prisma.circleMember.deleteMany({
+      where: {
+        circleId: { in: userCircleIds },
+        userId: friendId
+      }
+    });
+
+    // 3. Remove userId from any circle owned by friendId
+    const friendCircles = await prisma.circle.findMany({
+      where: { ownerId: friendId }
+    });
+    const friendCircleIds = friendCircles.map(c => c.id);
+    await prisma.circleMember.deleteMany({
+      where: {
+        circleId: { in: friendCircleIds },
+        userId
+      }
+    });
+
+    res.json({ success: true, message: 'Friend removed successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Server error removing friend' });
+  }
+});
+
 function formattedRequestsForList(requests: any[], userId: string) {
   return requests.map(r => {
     const isSender = r.senderId === userId;

@@ -99,6 +99,7 @@ interface AppContextType {
   sendFriendRequest: (receiverUsername: string) => Promise<void>;
   acceptFriendRequest: (friendshipId: string) => Promise<void>;
   rejectFriendRequest: (friendshipId: string) => Promise<void>;
+  deleteFriend: (friendId: string) => Promise<void>;
   createCircle: (circleName: string) => Promise<Circle>;
   deleteCircle: (circleId: string) => Promise<void>;
   addCircleMember: (circleId: string, userId: string) => Promise<void>;
@@ -424,6 +425,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const deleteFriend = async (friendId: string) => {
+    if (!user) throw new Error('Not authenticated');
+    try {
+      const res = await fetch(`${apiUrl}/api/friends`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, friendId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to remove friend');
+      await refreshAll();
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
   const createCircle = async (circleName: string) => {
     if (!user) throw new Error('Not authenticated');
     try {
@@ -604,6 +622,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendFriendRequest,
         acceptFriendRequest,
         rejectFriendRequest,
+        deleteFriend,
         createCircle,
         deleteCircle,
         addCircleMember,

@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
 
 export default function FriendsAndCirclesScreen() {
-  const { user, friends, circles, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, createCircle, deleteCircle, addCircleMember, isLoading, createInvite } = useApp();
+  const { user, friends, circles, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, deleteFriend, createCircle, deleteCircle, addCircleMember, isLoading, createInvite } = useApp();
   const [inviteCodeText, setInviteCodeText] = useState<string | null>(null);
   
   // Tabs
@@ -118,6 +118,28 @@ export default function FriendsAndCirclesScreen() {
     );
   };
 
+  const handleDeleteFriend = (friendId: string, username: string) => {
+    Alert.alert(
+      'Remove Friend',
+      `Are you sure you want to remove @${username} as a friend? You will also be removed from each other's circles.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteFriend(friendId);
+              setFeedbackMsg({ text: `Removed @${username} from your friends list.`, isError: false });
+            } catch (err: any) {
+              setFeedbackMsg({ text: err.message || 'Failed to remove friend', isError: true });
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleCreateCircle = async () => {
     if (!circleNameInput) return;
     setFeedbackMsg(null);
@@ -168,9 +190,17 @@ export default function FriendsAndCirclesScreen() {
           </View>
         )
       ) : (
-        <View style={styles.friendBadge}>
-          <Feather name="check" size={14} color={theme.colors.primary} />
-          <Text style={styles.friendBadgeText}>Friend</Text>
+        <View style={styles.friendBadgeRow}>
+          <View style={styles.friendBadge}>
+            <Feather name="check" size={14} color={theme.colors.primary} />
+            <Text style={styles.friendBadgeText}>Friend</Text>
+          </View>
+          <Pressable 
+            style={styles.deleteFriendBtn} 
+            onPress={() => handleDeleteFriend(item.friendId, item.username)}
+          >
+            <Feather name="user-x" size={15} color={theme.colors.error} />
+          </Pressable>
         </View>
       )}
     </View>
@@ -902,6 +932,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   deleteCircleBtn: {
+    backgroundColor: 'rgba(186, 26, 26, 0.08)',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(186, 26, 26, 0.2)',
+  },
+  friendBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteFriendBtn: {
     backgroundColor: 'rgba(186, 26, 26, 0.08)',
     width: 32,
     height: 32,
