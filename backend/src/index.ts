@@ -1010,7 +1010,7 @@ app.post('/api/invites/create', async (req: Request, res: Response): Promise<any
 
   try {
     const inviteCode = generateInviteCode();
-    const inviteLink = `https://moments.app/invite/${inviteCode}`;
+    const inviteLink = `https://moment-x8we.onrender.com/invite/${inviteCode}`;
 
     const invitation = await prisma.invitation.create({
       data: {
@@ -1024,6 +1024,306 @@ app.post('/api/invites/create', async (req: Request, res: Response): Promise<any
     res.status(201).json({ inviteCode, inviteLink, invitation });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Server error generating invitation' });
+  }
+});
+
+// GET /invite/:inviteCode
+app.get('/invite/:inviteCode', async (req: Request, res: Response): Promise<any> => {
+  const inviteCode = req.params.inviteCode;
+  if (!inviteCode || typeof inviteCode !== 'string') {
+    return res.status(400).send('Invite code is required');
+  }
+
+  try {
+    // Track the click event
+    const invite = (await prisma.invitation.findUnique({
+      where: { inviteCode },
+      include: { inviter: true }
+    })) as any;
+
+    if (invite) {
+      // Increment clickCount
+      await prisma.invitation.update({
+        where: { inviteCode },
+        data: { clickCount: { increment: 1 } }
+      });
+
+      // Record the click event
+      await prisma.invitationEvent.create({
+        data: {
+          invitationId: invite.id,
+          eventType: 'CLICK'
+        }
+      });
+    }
+
+    const inviterName = invite?.inviter?.name || invite?.inviter?.username || "A friend";
+
+    // Serve a beautifully-styled premium HTML download page
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Join Moments</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #0A0A0C;
+      color: #F3F4F6;
+      font-family: 'Outfit', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      overflow-x: hidden;
+    }
+    .container {
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+      background: rgba(18, 18, 22, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 40px 32px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(20px);
+      animation: fadeIn 0.8s ease-out;
+      position: relative;
+    }
+    .container::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(135deg, #FF8A00, #FF007A);
+      border-radius: 26px;
+      z-index: -1;
+      opacity: 0.15;
+    }
+    .glow-bg {
+      position: absolute;
+      width: 250px;
+      height: 250px;
+      background: radial-gradient(circle, rgba(255, 138, 0, 0.15) 0%, rgba(255, 0, 122, 0) 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: -2;
+      pointer-events: none;
+    }
+    .logo {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      background: linear-gradient(90deg, #FF8A00, #FF007A);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 24px;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      line-height: 1.25;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: #9CA3AF;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+    .btn {
+      display: inline-block;
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(90deg, #FF8A00, #FF007A);
+      color: #FFFFFF;
+      font-weight: 600;
+      font-size: 16px;
+      text-decoration: none;
+      border-radius: 14px;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 20px rgba(255, 0, 122, 0.3);
+      margin-bottom: 32px;
+      border: none;
+      text-align: center;
+      cursor: pointer;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(255, 0, 122, 0.5);
+    }
+    .btn:active {
+      transform: translateY(0);
+    }
+    .code-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 32px;
+    }
+    .code-title {
+      font-size: 12px;
+      color: #9CA3AF;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    .code-value {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #FFFFFF;
+      margin-bottom: 12px;
+    }
+    .copy-btn {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #F3F4F6;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .copy-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .steps {
+      text-align: left;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 16px;
+      padding: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .steps-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #F3F4F6;
+    }
+    .step {
+      font-size: 13px;
+      color: #9CA3AF;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: flex-start;
+      line-height: 1.4;
+    }
+    .step:last-child {
+      margin-bottom: 0;
+    }
+    .step-num {
+      color: #FF8A00;
+      font-weight: 600;
+      margin-right: 8px;
+      flex-shrink: 0;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    /* Toast styles */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #18181B;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #FFFFFF;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 1000;
+      pointer-events: none;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-bg"></div>
+  <div class="container">
+    <div class="logo">Moments</div>
+    <h1>You've been invited!</h1>
+    <p class="subtitle">Join <strong>${inviterName}</strong> on Moments to share photos directly onto each other's home screens.</p>
+    
+    <a href="https://expo.dev/artifacts/eas/jfKYjssya6J1u9qfZeAAuo.apk" class="btn">Download Moments for Android</a>
+    
+    <div class="code-card">
+      <div class="code-title">Your Invite Code</div>
+      <div class="code-value" id="invite-code">${inviteCode}</div>
+      <button class="copy-btn" onclick="copyCode()">Copy Code</button>
+    </div>
+    
+    <div class="steps">
+      <div class="steps-title">How to join:</div>
+      <div class="step">
+        <span class="step-num">1.</span>
+        <span>Click the button above to download the APK.</span>
+      </div>
+      <div class="step">
+        <span class="step-num">2.</span>
+        <span>Open the downloaded file and install the app.</span>
+      </div>
+      <div class="step">
+        <span class="step-num">3.</span>
+        <span>During registration, paste the copied **Invite Code** to instantly link up!</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast">Code copied to clipboard!</div>
+
+  <script>
+    function copyCode() {
+      var codeText = document.getElementById('invite-code').innerText;
+      navigator.clipboard.writeText(codeText).then(function() {
+        showToast();
+      }, function(err) {
+        var textarea = document.createElement('textarea');
+        textarea.value = codeText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showToast();
+      });
+    }
+
+    function showToast() {
+      var toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(function() {
+        toast.classList.remove('show');
+      }, 2500);
+    }
+  </script>
+</body>
+</html>
+    `;
+    res.send(htmlContent);
+  } catch (error: any) {
+    res.status(500).send('Error loading invitation details: ' + error.message);
   }
 });
 
