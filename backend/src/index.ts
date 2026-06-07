@@ -1430,7 +1430,7 @@ app.get('/invite/:inviteCode', async (req: Request, res: Response): Promise<any>
     <h1>You've been invited!</h1>
     <p class="subtitle">Join <strong>${inviterName}</strong> on Moments to share photos directly onto each other's home screens.</p>
     
-    <a href="https://expo.dev/artifacts/eas/sPJn6Kkgf111wpE2Uztzcg.apk" class="btn">Download Moments for Android</a>
+    <a href="https://expo.dev/artifacts/eas/xhoJKPjg6uu6Ae46ibTiw1.apk" class="btn">Download Moments for Android</a>
     
     <div class="code-card">
       <div class="code-title">Your Invite Code</div>
